@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MACRO DESK — Real-Time Regime Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Bebas+Neue&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070a0f;
+    --surface: #0d1117;
+    --border: #1c2333;
+    --accent-green: #00ff9d;
+    --accent-red: #ff3b5c;
+    --accent-yellow: #f5c842;
+    --accent-blue: #3b8bff;
+    --accent-purple: #a259ff;
+    --text-primary: #e8edf5;
+    --text-dim: #5a6478;
+    --text-mid: #8892a4;
+    --glow-green: 0 0 20px rgba(0,255,157,0.25);
+    --glow-red: 0 0 20px rgba(255,59,92,0.25);
+    --glow-yellow: 0 0 20px rgba(245,200,66,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(13,17,23,0.95);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 4px;
+    color: var(--text-primary);
+  }
+
+  .logo span {
+    color: var(--accent-green);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--accent-green);
+    text-transform: uppercase;
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    animation: pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--accent-green);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .timestamp {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  /* Regime Banner */
+  .regime-banner {
+    margin: 24px 32px 0;
+    padding: 16px 24px;
+    border: 1px solid;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .regime-banner.hawkish {
+    border-color: rgba(255,59,92,0.4);
+    background: rgba(255,59,92,0.05);
+  }
+
+  .regime-banner.neutral {
+    border-color: rgba(245,200,66,0.4);
+    background: rgba(245,200,66,0.05);
+  }
+
+  .regime-banner.dovish {
+    border-color: rgba(0,255,157,0.4);
+    background: rgba(0,255,157,0.05);
+  }
+
+  .regime-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+  }
+
+  .regime-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 4px;
+  }
+
+  .regime-banner.hawkish .regime-name { color: var(--accent-red); }
+  .regime-banner.neutral .regime-name { color: var(--accent-yellow); }
+  .regime-banner.dovish .regime-name { color: var(--accent-green); }
+
+  .regime-desc {
+    font-size: 11px;
+    color: var(--text-mid);
+    letter-spacing: 1px;
+    max-width: 500px;
+    line-height: 1.6;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .regime-score-wrap {
+    text-align: right;
+  }
+
+  .regime-score-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .regime-score {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    letter-spacing: 2px;
+  }
+
+  /* Main grid */
+  .main-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
+    padding: 24px 32px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 20px;
+    position: relative;
+    transition: border-color 0.3s ease;
+  }
+
+  .card:hover {
+    border-color: rgba(255,255,255,0.1);
+  }
+
+  .card-corner {
+    position: absolute;
+    top: 0; right: 0;
+    width: 0; height: 0;
+    border-style: solid;
+    border-width: 0 20px 20px 0;
+  }
+
+  .card.green .card-corner { border-color: transparent var(--accent-green) transparent transparent; }
+  .card.red .card-corner { border-color: transparent var(--accent-red) transparent transparent; }
+  .card.yellow .card-corner { border-color: transparent var(--accent-yellow) transparent transparent; }
+  .card.blue .card-corner { border-color: transparent var(--accent-blue) transparent transparent; }
+
+  .card-label {
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .card-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    letter-spacing: 2px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .card.green .card-value { color: var(--accent-green); }
+  .card.red .card-value { color: var(--accent-red); }
+  .card.yellow .card-value { color: var(--accent-yellow); }
+  .card.blue .card-value { color: var(--accent-blue); }
+
+  .card-change {
+    font-size: 12px;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-change.up { color: var(--accent-green); }
+  .card-change.down { color: var(--accent-red); }
+  .card-change.flat { color: var(--text-dim); }
+
+  .card-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 10px;
+    letter-spacing: 1px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    line-height: 1.5;
+  }
+
+  /* Yield curve card */
+  .col-span-4 { grid-column: span 4; }
+  .col-span-3 { grid-column: span 3; }
+  .col-span-6 { grid-column: span 6; }
+  .col-span-8 { grid-column: span 8; }
+  .col-span-12 { grid-column: span 12; }
+
+  /* Mini sparkline */
+  .sparkline-wrap {
+    margin-top: 14px;
+    height: 40px;
+    position: relative;
+  }
+
+  .sparkline-wrap svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Yield curve visualization */
+  .yield-curve-chart {
+    margin-top: 16px;
+    height: 120px;
+    position: relative;
+  }
+
+  /* Fed expectations table */
+  .table-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .table-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(28,35,51,0.5);
+    font-size: 12px;
+    align-items: center;
+    transition: background 0.2s;
+  }
+
+  .table-row:hover {
+    background: rgba(255,255,255,0.02);
+  }
+
+  .prob-bar-wrap {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .prob-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent-green);
+    transition: width 0.5s ease;
+  }
+
+  .prob-bar.cut { background: var(--accent-green); }
+  .prob-bar.hold { background: var(--accent-yellow); }
+  .prob-bar.hike { background: var(--accent-red); }
+
+  /* Signal matrix */
+  .signal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .signal-item {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    padding: 12px;
+    border-radius: 1px;
+  }
+
+  .signal-name {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .signal-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 2px;
+  }
+
+  .signal-value.bull { color: var(--accent-green); }
+  .signal-value.bear { color: var(--accent-red); }
+  .signal-value.neutral-s { color: var(--accent-yellow); }
+
+  /* Breakeven chart area */
+  .chart-area {
+    margin-top: 14px;
+    height: 100px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Animated number */
+  @keyframes countUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .card-value {
+    animation: countUp 0.5s ease forwards;
+  }
+
+  /* Section header */
+  .section-header {
+    grid-column: span 12;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: -4px;
+  }
+
+  .section-header h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Footer */
+  footer {
+    padding: 16px 32px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+  }
+
+  .footer-text {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  .data-sources {
+    display: flex;
+    gap: 16px;
+  }
+
+  .source-tag {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 1px;
+  }
+
+  .source-tag.active {
+    border-color: rgba(0,255,157,0.3);
+    color: var(--accent-green);
+  }
+
+  /* Loading shimmer */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* Tooltip */
+  .tooltip-wrap {
+    position: relative;
+  }
+
+  .info-icon {
+    font-size: 10px;
+    color: var(--text-dim);
+    cursor: help;
+    margin-left: 6px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Regime gauge */
+  .gauge-wrap {
+    margin-top: 12px;
+    height: 8px;
+    background: linear-gradient(to right, var(--accent-green), var(--accent-yellow), var(--accent-red));
+    border-radius: 4px;
+    position: relative;
+  }
+
+  .gauge-needle {
+    position: absolute;
+    top: -4px;
+    width: 3px;
+    height: 16px;
+    background: white;
+    border-radius: 2px;
+    transform: translateX(-50%);
+    box-shadow: 0 0 8px rgba(255,255,255,0.6);
+    transition: left 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 1200px) {
+    .col-span-3 { grid-column: span 6; }
+    .col-span-4 { grid-column: span 6; }
+  }
+
+  @media (max-width: 768px) {
+    .main-grid { padding: 16px; }
+    [class*="col-span-"] { grid-column: span 12 !important; }
+    header { padding: 12px 16px; }
+  }
+
+  /* Number flash animation */
+  @keyframes flash {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+  }
+
+  .flash { animation: flash 0.4s ease; }
+
+  /* Tick indicator */
+  .tick-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .tick {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+  }
+
+  .tick.active.green { background: var(--accent-green); box-shadow: 0 0 4px var(--accent-green); }
+  .tick.active.red { background: var(--accent-red); box-shadow: 0 0 4px var(--accent-red); }
+  .tick.active.yellow { background: var(--accent-yellow); box-shadow: 0 0 4px var(--accent-yellow); }
+
+  .alert-strip {
+    background: rgba(245,200,66,0.08);
+    border: 1px solid rgba(245,200,66,0.2);
+    padding: 8px 16px;
+    font-size: 11px;
+    color: var(--accent-yellow);
+    letter-spacing: 1.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .alert-strip::before {
+    content: '⚠';
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">MACRO<span>DESK</span></div>
+  <div class="header-right">
+    <div class="live-indicator">
+      <div class="live-dot"></div>
+      LIVE
+    </div>
+    <div class="timestamp" id="clock">--:--:-- UTC</div>
+  </div>
+</header>
+
+<!-- Regime Banner -->
+<div class="regime-banner neutral" id="regimeBanner">
+  <div>
+    <div class="regime-label">Current Macro Regime</div>
+    <div class="regime-name" id="regimeName">CAUTIOUS EASING</div>
+  </div>
+  <div class="regime-desc" id="regimeDesc">
+    Inflation cooling but sticky core services. Fed signaling cuts but data-dependent pause. Risk assets pricing goldilocks. Watch for upside CPI surprise.
+  </div>
+  <div class="regime-score-wrap">
+    <div class="regime-score-label">Hawkish Score</div>
+    <div class="regime-score" id="regimeScore" style="color: var(--accent-yellow);">47</div>
+    <div class="gauge-wrap" style="width: 120px; margin-top: 8px;">
+      <div class="gauge-needle" id="gaugeNeedle" style="left: 47%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="main-grid">
+
+  <!-- SECTION: Inflation -->
+  <div class="section-header">
+    <h2>Inflation</h2>
+    <div class="section-line"></div>
+  </div>
+
+  <!-- CPI YoY -->
+  <div class="card yellow col-span-3">
+    <div class="card-corner"></div>
+    <div class="card-label">CPI YOY</div>
+    <div class="card-value" id="cpi">3.2%</div>
+    <div class="card-change down" id="cpiChange">▼ 0.1pp vs prior</div>
+    <div class="card-sub">Headline Consumer Price Index<br>Prior: 3.3% · Est: 3.1%</div>
+    <div class="sparkline-wrap">
+      <svg id="cpiSpark" viewBox="0 0 200 40" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+
+  <!-- Core CPI -->
+  <div class="card yellow col-span-3">
+    <div class="card-corner"></div>
+    <div class="card-label">CORE CPI YOY</div>
+    <div class="card-value" id="coreCpi">3.8%</div>
+    <div class="card-change flat" id="coreCpiChange">— 0.0pp vs prior</div>
+    <div class="card-sub">Ex-Food & Energy<br>Prior: 3.8% · Est: 3.7%</div>
+    <div class="sparkline-wrap">
+      <svg id="coreCpiSpark" viewBox="0 0 200 40" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+
+  <!-- PCE -->
+  <div class="card yellow col-span-3">
+    <div class="card-corner"></div>
+    <div class="card-label">CORE PCE YOY</div>
+    <div class="card-value" id="pce">2.8%</div>
+    <div class="card-change down" id="pceChange">▼ 0.1pp vs prior</div>
+    <div class="card-sub">Fed's preferred gauge<br>Prior: 2.9% · Target: 2.0%</div>
+    <div class="sparkline-wrap">
+      <svg id="pceSpark" viewBox="0 0 200 40" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+
+  <!-- 5Y Breakeven -->
+  <div class="card blue col-span-3">
+    <div class="card-corner"></div>
+    <div class="card-label">5Y BREAKEVEN</div>
+    <div class="card-value" id="break5y">2.41%</div>
+    <div class="card-change up" id="break5yChange">▲ 0.04pp today</div>
+    <div class="card-sub">Market-implied inflation<br>5Y horizon · TIPS spread</div>
+    <div class="sparkline-wrap">
+      <svg id="break5ySpark" viewBox="0 0 200 40" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+
+  <!-- SECTION: Rates -->
+  <div class="section-header">
+    <h2>Rates & Yield Curve</h2>
+    <div class="section-line"></div>
+  </div>
+
+  <!-- 2Y Yield -->
+  <div class="card red col-span-3">
+    <div class="card-corner"></div>
+    <div class="card-label">2Y TREASURY</div>
+    <div class="card-value" id="y2">4.68%</div>
+    <div class="card-change down">▼ 3.2bps</div>
+    <div class="card-sub">Tracks Fed policy expectations<br>Most sensitive to rate path</div>
+  </div>
+
+  <!-- 10Y Yield -->
+  <div class="card red col-span-3">
+    <div class="card-corner"></div>
+    <div class="card-label">10Y TREASURY</div>
+    <div class="card-value" id="y10">4.29%</div>
+    <div class="card-change up">▲ 1.1bps</div>
+    <div class="card-sub">Long-run growth + inflation<br>Global risk-free benchmark</div>
+  </div>
+
+  <!-- 30Y Yield -->
+  <div class="card red col-span-3">
+    <div class="card-corner"></div>
+    <div class="card-label">30Y TREASURY</div>
+    <div class="card-value" id="y30">4.51%</div>
+    <div class="card-change up">▲ 2.4bps</div>
+    <div class="card-sub">Term premium indicator<br>Watch for steepening</div>
+  </div>
+
+  <!-- 2s10s Spread -->
+  <div class="card green col-span-3">
+    <div class="card-corner"></div>
+    <div class="card-label">2s10s SPREAD</div>
+    <div class="card-value" id="spread" style="font-size:36px">-39bps</div>
+    <div class="card-change up">▲ 4.3bps (steepening)</div>
+    <div class="card-sub">Inverted since Jul 2022<br>Recession signal — watch steepener</div>
+  </div>
+
+  <!-- Yield Curve Chart -->
+  <div class="card col-span-8">
+    <div class="card-label">YIELD CURVE — FULL TERM STRUCTURE</div>
+    <div class="yield-curve-chart">
+      <svg id="yieldCurve" viewBox="0 0 600 120" preserveAspectRatio="none" width="100%" height="100%"></svg>
+    </div>
+    <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:10px; color:var(--text-dim); letter-spacing:1px;">
+      <span>1M</span><span>3M</span><span>6M</span><span>1Y</span><span>2Y</span><span>3Y</span><span>5Y</span><span>7Y</span><span>10Y</span><span>20Y</span><span>30Y</span>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:10px;">
+      <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-dim);">
+        <div style="width:20px;height:2px;background:var(--accent-blue);"></div> Current
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-dim);">
+        <div style="width:20px;height:2px;background:var(--border);border-top:1px dashed var(--border);"></div> 1Y Ago
+      </div>
+    </div>
+  </div>
+
+  <!-- Real Rates -->
+  <div class="card col-span-4">
+    <div class="card-label">REAL RATES (TIPS)</div>
+    <div class="signal-grid">
+      <div class="signal-item">
+        <div class="signal-name">5Y REAL</div>
+        <div class="signal-value bear">+2.12%</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">Restrictive</div>
+      </div>
+      <div class="signal-item">
+        <div class="signal-name">10Y REAL</div>
+        <div class="signal-value bear">+2.03%</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">Restrictive</div>
+      </div>
+      <div class="signal-item">
+        <div class="signal-name">10Y BKEVN</div>
+        <div class="signal-value neutral-s">2.26%</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">Anchored</div>
+      </div>
+      <div class="signal-item">
+        <div class="signal-name">5Y5Y FWD</div>
+        <div class="signal-value neutral-s">2.51%</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">Above target</div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:12px;line-height:1.6;font-family:'IBM Plex Sans',sans-serif;">
+      Positive real rates = restrictive monetary conditions. Fed funds − inflation expectations. Watch 5Y5Y for long-run anchoring.
+    </div>
+  </div>
+
+  <!-- SECTION: Fed Policy -->
+  <div class="section-header">
+    <h2>Fed Policy Expectations</h2>
+    <div class="section-line"></div>
+  </div>
+
+  <!-- Fed Funds Current -->
+  <div class="card col-span-3" style="border-left: 3px solid var(--accent-yellow);">
+    <div class="card-label">FED FUNDS RATE</div>
+    <div class="card-value" style="color:var(--accent-yellow);">5.25%</div>
+    <div class="card-change flat">— Upper bound: 5.50%</div>
+    <div class="card-sub">Current effective rate<br>Highest since 2001</div>
+    <div class="tick-wrap" style="margin-top:12px;">
+      <div class="tick active red"></div>
+      <div class="tick active red"></div>
+      <div class="tick active red"></div>
+      <div class="tick active red"></div>
+      <div class="tick active red"></div>
+      <div class="tick active yellow"></div>
+      <div class="tick"></div>
+      <div class="tick"></div>
+      <div class="tick"></div>
+      <div class="tick"></div>
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">5 of 10 possible hikes executed</div>
+  </div>
+
+  <!-- FOMC Meeting expectations table -->
+  <div class="card col-span-9">
+    <div class="card-label">FOMC MEETING RATE PROBABILITIES — FED FUNDS FUTURES</div>
+    <div class="table-header">
+      <span>Meeting</span>
+      <span>Rate After</span>
+      <span>Cut Prob</span>
+      <span>Distribution</span>
+    </div>
+    <div id="fomcTable"></div>
+  </div>
+
+  <!-- SECTION: Regime Signals -->
+  <div class="section-header">
+    <h2>Regime Signal Matrix</h2>
+    <div class="section-line"></div>
+  </div>
+
+  <!-- Signal matrix -->
+  <div class="card col-span-12">
+    <div class="card-label">MACRO SIGNAL COMPOSITE — ALL INPUTS</div>
+    <div id="signalMatrix" style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:12px;"></div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="footer-text">MACRO DESK v2.0 · FOR INFORMATIONAL PURPOSES ONLY · NOT INVESTMENT ADVICE</div>
+  <div class="data-sources">
+    <div class="source-tag active">FRED API</div>
+    <div class="source-tag active">US TREASURY</div>
+    <div class="source-tag active">FED FUTURES</div>
+    <div class="source-tag active">TIPS MARKET</div>
+  </div>
+</footer>
+
+<script>
+// ─── CLOCK ───────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toUTCString().split(' ')[4] + ' UTC';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── DATA MODEL ──────────────────────────────────────────────────────────────
+const macroData = {
+  cpiHistory: [4.9, 4.0, 3.7, 3.7, 3.2, 3.1, 3.4, 3.2, 3.5, 3.2],
+  coreCpiHistory: [5.5, 4.8, 4.3, 4.1, 3.8, 3.8, 3.9, 3.8, 3.8, 3.8],
+  pceHistory: [4.6, 4.0, 3.5, 3.4, 2.9, 2.8, 2.9, 2.9, 2.9, 2.8],
+  break5yHistory: [2.1, 2.2, 2.3, 2.4, 2.3, 2.2, 2.3, 2.4, 2.37, 2.41],
+  yieldCurve: {
+    current: [5.55, 5.45, 5.40, 5.18, 4.68, 4.55, 4.42, 4.38, 4.29, 4.47, 4.51],
+    yearAgo: [4.80, 5.02, 5.12, 5.10, 4.62, 4.39, 4.15, 4.10, 3.98, 4.18, 4.05]
+  },
+  fomcMeetings: [
+    { date: 'Mar 20, 2025', base: 5.25, cutProb: 14, holdProb: 82, hikeProb: 4 },
+    { date: 'May 7, 2025', base: 5.10, cutProb: 38, holdProb: 57, hikeProb: 5 },
+    { date: 'Jun 18, 2025', base: 4.95, cutProb: 62, holdProb: 36, hikeProb: 2 },
+    { date: 'Jul 30, 2025', base: 4.80, cutProb: 71, holdProb: 28, hikeProb: 1 },
+    { date: 'Sep 17, 2025', base: 4.65, cutProb: 78, holdProb: 21, hikeProb: 1 },
+  ],
+  signals: [
+    { name: 'CPI Trend', value: 'COOLING', sentiment: 'bull', detail: '3-month avg declining' },
+    { name: 'Core Inflation', value: 'STICKY', sentiment: 'bear', detail: 'Services remain hot' },
+    { name: 'Yield Curve', value: 'INVERTED', sentiment: 'bear', detail: '2s10s = -39bps' },
+    { name: 'Real Rates', value: 'TIGHT', sentiment: 'bear', detail: '2.12% real = restrictive' },
+    { name: 'Breakevens', value: 'ANCHORED', sentiment: 'neutral', detail: '5Y at 2.41%, stable' },
+    { name: 'Policy Path', value: 'CUT Q2', sentiment: 'bull', detail: '62% cut by Jun 2025' },
+    { name: 'Labor Mkt', value: 'STRONG', sentiment: 'neutral', detail: 'NFP 275k, unemp 3.9%' },
+    { name: 'M2 Money', value: 'SHRINKING', sentiment: 'bear', detail: '-2.3% YoY growth' },
+    { name: 'Credit Spreads', value: 'TIGHT', sentiment: 'neutral', detail: 'IG 95bps, HY 295bps' },
+    { name: 'Global CB', value: 'DIVERGE', sentiment: 'neutral', detail: 'ECB cutting, BoJ hiking' },
+    { name: 'Term Premium', value: 'LOW', sentiment: 'neutral', detail: 'ACM: 8bps, compressed' },
+    { name: 'Oil/Commodities', value: 'ELEVATED', sentiment: 'bear', detail: 'WTI $78, upside risk' },
+  ]
+};
+
+// ─── SPARKLINES ───────────────────────────────────────────────────────────────
+function drawSparkline(svgId, data, color) {
+  const svg = document.getElementById(svgId);
+  if (!svg) return;
+  const w = 200, h = 40;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 0.1;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 4) - 2;
+    return `${x},${y}`;
+  });
+  const line = pts.join(' L ');
+  const areaClose = `L ${w},${h} L 0,${h} Z`;
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="grad_${svgId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="M ${line} ${areaClose}" fill="url(#grad_${svgId})"/>
+    <path d="M ${line}" fill="none" stroke="${color}" stroke-width="1.5"/>
+    <circle cx="${pts[pts.length-1].split(',')[0]}" cy="${pts[pts.length-1].split(',')[1]}" r="2.5" fill="${color}"/>
+  `;
+}
+
+drawSparkline('cpiSpark', macroData.cpiHistory, '#f5c842');
+drawSparkline('coreCpiSpark', macroData.coreCpiHistory, '#f5c842');
+drawSparkline('pceSpark', macroData.pceHistory, '#f5c842');
+drawSparkline('break5ySpark', macroData.break5yHistory, '#3b8bff');
+
+// ─── YIELD CURVE ─────────────────────────────────────────────────────────────
+function drawYieldCurve() {
+  const svg = document.getElementById('yieldCurve');
+  const w = 600, h = 120;
+  const data = macroData.yieldCurve.current;
+  const dataOld = macroData.yieldCurve.yearAgo;
+  const min = 3.5, max = 5.8;
+  const range = max - min;
+
+  function toPath(arr) {
+    return arr.map((v, i) => {
+      const x = (i / (arr.length - 1)) * (w - 40) + 20;
+      const y = h - ((v - min) / range) * (h - 20) - 10;
+      return `${x},${y}`;
+    });
+  }
+
+  const ptsCurrent = toPath(data);
+  const ptsOld = toPath(dataOld);
+
+  // Y-axis labels
+  const yLabels = [3.5, 4.0, 4.5, 5.0, 5.5].map(v => {
+    const y = h - ((v - min) / range) * (h - 20) - 10;
+    return `<text x="0" y="${y + 3}" font-size="9" fill="#5a6478" font-family="IBM Plex Mono">${v.toFixed(1)}%</text>
+            <line x1="18" y1="${y}" x2="${w}" y2="${y}" stroke="#1c2333" stroke-width="0.5" stroke-dasharray="3,4"/>`;
+  });
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="curveGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3b8bff" stop-opacity="0.15"/>
+        <stop offset="100%" stop-color="#3b8bff" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${yLabels.join('')}
+    <path d="M ${ptsOld.join(' L ')} L ${w - 20},${h} L 20,${h} Z" fill="none"/>
+    <path d="M ${ptsOld.join(' L ')}" fill="none" stroke="#1c2333" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <path d="M ${ptsCurrent.join(' L ')} L ${w - 20},${h} L 20,${h} Z" fill="url(#curveGrad)"/>
+    <path d="M ${ptsCurrent.join(' L ')}" fill="none" stroke="#3b8bff" stroke-width="2"/>
+    ${ptsCurrent.map((p, i) => `<circle cx="${p.split(',')[0]}" cy="${p.split(',')[1]}" r="3" fill="#3b8bff"/>`).join('')}
+  `;
+}
+drawYieldCurve();
+
+// ─── FOMC TABLE ──────────────────────────────────────────────────────────────
+function renderFomcTable() {
+  const container = document.getElementById('fomcTable');
+  container.innerHTML = macroData.fomcMeetings.map(m => {
+    const sentiment = m.cutProb > 60 ? 'cut' : m.holdProb > 60 ? 'hold' : 'hike';
+    const color = sentiment === 'cut' ? 'var(--accent-green)' : sentiment === 'hold' ? 'var(--accent-yellow)' : 'var(--accent-red)';
+    return `
+      <div class="table-row">
+        <span style="color:var(--text-mid);font-size:12px;">${m.date}</span>
+        <span style="color:${color};font-family:'Bebas Neue';font-size:16px;letter-spacing:1px;">${m.base.toFixed(2)}%</span>
+        <div>
+          <div style="display:flex;gap:8px;font-size:11px;">
+            <span style="color:var(--accent-green);">CUT ${m.cutProb}%</span>
+            <span style="color:var(--accent-yellow);">HOLD ${m.holdProb}%</span>
+            <span style="color:var(--accent-red);">HIKE ${m.hikeProb}%</span>
+          </div>
+        </div>
+        <div>
+          <div class="prob-bar-wrap"><div class="prob-bar ${sentiment}" style="width:${m.cutProb}%"></div></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+renderFomcTable();
+
+// ─── SIGNAL MATRIX ────────────────────────────────────────────────────────────
+function renderSignals() {
+  const container = document.getElementById('signalMatrix');
+  container.innerHTML = macroData.signals.map(s => {
+    const colorMap = { bull: 'var(--accent-green)', bear: 'var(--accent-red)', neutral: 'var(--accent-yellow)' };
+    const borderMap = { bull: 'rgba(0,255,157,0.2)', bear: 'rgba(255,59,92,0.2)', neutral: 'rgba(245,200,66,0.2)' };
+    return `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid ${borderMap[s.sentiment]};padding:14px;border-radius:1px;">
+        <div style="font-size:9px;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;">${s.name}</div>
+        <div style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;color:${colorMap[s.sentiment]};">${s.value}</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:6px;font-family:'IBM Plex Sans',sans-serif;">${s.detail}</div>
+      </div>
+    `;
+  }).join('');
+}
+renderSignals();
+
+// ─── LIVE UPDATE SIMULATION ──────────────────────────────────────────────────
+function randomWalk(val, delta) {
+  return +(val + (Math.random() - 0.5) * delta).toFixed(2);
+}
+
+function flashEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+
+// Simulate market data ticking every 4 seconds
+let y2 = 4.68, y10 = 4.29, y30 = 4.51;
+let break5y = 2.41;
+
+setInterval(() => {
+  y2 = randomWalk(y2, 0.03);
+  y10 = randomWalk(y10, 0.02);
+  y30 = randomWalk(y30, 0.02);
+  break5y = randomWalk(break5y, 0.01);
+
+  const spread = (y10 - y2) * 100;
+
+  document.getElementById('y2').textContent = y2.toFixed(2) + '%';
+  document.getElementById('y10').textContent = y10.toFixed(2) + '%';
+  document.getElementById('y30').textContent = y30.toFixed(2) + '%';
+  document.getElementById('spread').textContent = (spread >= 0 ? '+' : '') + spread.toFixed(0) + 'bps';
+  document.getElementById('break5y').textContent = break5y.toFixed(2) + '%';
+
+  flashEl('y2'); flashEl('y10'); flashEl('y30'); flashEl('spread'); flashEl('break5y');
+
+  // Update yield curve
+  macroData.yieldCurve.current[4] = y2;
+  macroData.yieldCurve.current[8] = y10;
+  macroData.yieldCurve.current[10] = y30;
+  drawYieldCurve();
+
+  // Regime needle
+  const hawkishScore = Math.min(100, Math.max(0, 50 + (y2 - 4.5) * 20 + (break5y - 2.3) * 30));
+  document.getElementById('regimeScore').textContent = hawkishScore.toFixed(0);
+  document.getElementById('gaugeNeedle').style.left = hawkishScore + '%';
+
+}, 4000);
+
+// Update breakeven sparkline occasionally
+setInterval(() => {
+  macroData.break5yHistory.push(break5y);
+  macroData.break5yHistory.shift();
+  drawSparkline('break5ySpark', macroData.break5yHistory, '#3b8bff');
+}, 8000);
+</script>
+
+</body>
+</html>
